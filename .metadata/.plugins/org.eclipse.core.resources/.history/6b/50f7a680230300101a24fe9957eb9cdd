@@ -1,0 +1,9 @@
+package com.bank.DTO;
+
+public class UserDTO {
+	 public String name;
+	    public String cardNumber;
+	    public String pin;
+	    public String email;
+	    public String phone;
+}

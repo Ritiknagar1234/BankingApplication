@@ -1,0 +1,119 @@
+package com.bank.controller;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.bank.DTO.LoginDTO;
+import com.bank.DTO.UserDTO;
+import com.bank.entities.Transaction;
+import com.bank.entities.User;
+import com.bank.payload.WithdrawRequest;
+import com.bank.repository.UserRepository;
+import com.bank.service.ATMService;
+
+@CrossOrigin(origins = "http://localhost:5173")
+@RestController
+@RequestMapping("/api")
+public class ATMController {
+
+    @Autowired
+    private ATMService atmService;
+    
+    private UserRepository userRepo;
+
+    @Autowired
+    public ATMController(UserRepository userRepo) {
+		super();
+		this.userRepo = userRepo;
+	}
+
+	@PostMapping("/register")
+    public ResponseEntity<User> register(@RequestBody UserDTO dto) {
+        return ResponseEntity.ok(atmService.registerUser(dto));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<User> login(@RequestBody LoginDTO dto) {
+        return ResponseEntity.ok(atmService.login(dto));
+    }
+
+    @PostMapping("/deposit")
+    public ResponseEntity<String> deposit(@RequestParam Long userId, @RequestParam double amount) {
+        atmService.deposit(userId, amount);
+        return ResponseEntity.ok("Amount Deposited Successfully");
+    }
+
+    @PostMapping("/withdraw")
+    public ResponseEntity<String> withdraw(@RequestBody WithdrawRequest request) {
+        atmService.withdraw(request.getUserId(), request.getAmount());
+        return ResponseEntity.ok("Withdrawal Successful");
+    }
+
+
+    @PostMapping("/fast-cash")
+    public ResponseEntity<String> fastCash(@RequestParam Long userId, @RequestParam double amount) {
+        atmService.fastCash(userId, amount);
+        return ResponseEntity.ok("Fast Cash Withdrawn");
+    }
+
+    @PutMapping("/change-pin")
+    public ResponseEntity<String> changePin(@RequestParam Long userId, @RequestParam String newPin) {
+        atmService.changePin(userId, newPin);
+        return ResponseEntity.ok("PIN Changed Successfully");
+    }
+
+    @GetMapping("/balance/{userId}")
+    public ResponseEntity<Double> getBalance(@PathVariable Long userId) {
+        return ResponseEntity.ok(atmService.getBalance(userId));
+    }
+
+    @GetMapping("/transactions/{userId}")
+    public ResponseEntity<List<Transaction>> getStatement(@PathVariable Long userId) {
+        return ResponseEntity.ok(atmService.getStatement(userId));
+    }
+    @GetMapping("/analytics/{userId}")
+    public ResponseEntity<Map<String, Object>> getAnalytics(@PathVariable Long userId) {
+        return ResponseEntity.ok(atmService.getTransactionAnalytics(userId));
+    }
+    
+    @GetMapping("/user/{id}")
+    public ResponseEntity<User> getUser(@PathVariable Long id) {
+        return ResponseEntity.ok(userRepo.findById(id).orElseThrow());
+    }
+
+    @PutMapping("/user/{id}")
+    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody UserDTO dto) {
+        User user = userRepo.findById(id).orElseThrow();
+        user.setName(dto.name);
+        user.setEmail(dto.email);
+        user.setPhone(dto.phone);
+        return ResponseEntity.ok(userRepo.save(user));
+    }
+    		
+    @GetMapping("/transactions/{userId}/filter")
+    public ResponseEntity<List<Transaction>> getFilteredTransactions(
+        @PathVariable Long userId,
+        @RequestParam(required = false) String type,
+        @RequestParam(required = false) String date,
+        @RequestParam(required = false) Double amount
+    ) {
+        List<Transaction> filtered = atmService.filterTransactions(userId, type, date, amount);
+        return ResponseEntity.ok(filtered);
+    }
+
+
+
+}
+

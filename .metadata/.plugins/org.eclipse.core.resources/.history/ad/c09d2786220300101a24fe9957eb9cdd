@@ -1,0 +1,17 @@
+package com.bank.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+
+public class EmailService {
+
+	   @Autowired
+	    private JavaMailSender mailSender;
+
+	    public void sendOtpEmail(String to, String otp) {
+	        SimpleMailMessage message = new SimpleMailMessage();
+	        message.setTo(to);
+	        message.setSubject("Your OTP for ATM Login");
+	        message.setText("Your OTP is: " + otp);
+	        mailSender.send(message);
+	    }
+}

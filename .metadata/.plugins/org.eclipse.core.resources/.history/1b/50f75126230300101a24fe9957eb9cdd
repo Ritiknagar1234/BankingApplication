@@ -1,0 +1,142 @@
+package com.bank.serviceImpl;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.bank.DTO.LoginDTO;
+import com.bank.DTO.UserDTO;
+import com.bank.entities.Transaction;
+import com.bank.entities.User;
+import com.bank.repository.TransactionRepository;
+import com.bank.repository.UserRepository;
+import com.bank.service.ATMService;
+
+@Service
+public class ATMServiceImpl implements ATMService {
+    
+    @Autowired
+    private UserRepository userRepo;
+
+    @Autowired
+    private TransactionRepository transRepo;
+
+    @Override
+    public User registerUser(UserDTO dto) {
+        if (userRepo.findByCardNumber(dto.cardNumber).isPresent()) {
+            throw new RuntimeException("Card number already exists.");
+        }
+        User user = new User();
+        user.setName(dto.name);
+        String generatedCard = generateUniqueCardNumber();
+        user.setCardNumber(generatedCard);
+        user.setPin(dto.pin); // Hashing recommended
+        user.setCreatedAt(LocalDateTime.now());
+
+        return userRepo.save(user);
+    }
+
+    @Override
+    public User login(LoginDTO loginDTO) {
+    	System.out.println("Trying to login with card: " + loginDTO.cardNumber + ", pin: " + loginDTO.pin);
+
+        return userRepo.findByCardNumber(loginDTO.cardNumber)
+            .filter(user -> user.getPin().equals(loginDTO.pin)) // Hash match in production
+            .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+    }
+
+    @Override
+    public void deposit(Long userId, double amount) {
+        User user = userRepo.findById(userId).orElseThrow();
+        user.setBalance(user.getBalance() + amount);
+        userRepo.save(user);
+        transRepo.save(new Transaction(userId, "DEPOSIT", amount));
+    }
+
+    @Override
+    public void withdraw(Long userId, double amount) {
+        User user = userRepo.findById(userId).orElseThrow();
+        if (user.getBalance() < amount) {
+            throw new RuntimeException("Insufficient balance");
+        }
+        System.out.println("Trying to withdraw amount");
+        user.setBalance(user.getBalance() - amount);
+        userRepo.save(user);
+        transRepo.save(new Transaction(userId, "WITHDRAW", amount));
+    }
+
+    @Override
+    public void fastCash(Long userId, double amount) {
+        withdraw(userId, amount);
+    }
+
+    @Override
+    public void changePin(Long userId, String newPin) {
+        User user = userRepo.findById(userId).orElseThrow();
+        user.setPin(newPin); // Hash in production
+        userRepo.save(user);
+    }
+
+    @Override
+    public double getBalance(Long userId) {
+        return userRepo.findById(userId).orElseThrow().getBalance();
+    }
+
+    @Override
+    public List<Transaction> getStatement(Long userId) {
+        return transRepo.findByUserId(userId);
+    }
+    private String generateUniqueCardNumber() {
+        String cardNumber;
+        Random random = new Random();
+
+        do {
+            // Generate a 10-digit random number starting with a fixed prefix (optional)
+            cardNumber = String.valueOf(1000000000L + Math.abs(random.nextLong() % 9000000000L));
+        } while (userRepo.findByCardNumber(cardNumber).isPresent());
+
+        return cardNumber;
+    }
+    @Override
+    public Map<String, Object> getTransactionAnalytics(Long userId) {
+        List<Transaction> transactions = transRepo.findByUserId(userId);
+        
+        Map<String, Object> analytics = new HashMap<>();
+
+        long depositCount = transactions.stream().filter(t -> t.getType().equals("DEPOSIT")).count();
+        long withdrawCount = transactions.stream().filter(t -> t.getType().equals("WITHDRAW")).count();
+
+        Map<String, Long> dateActivity = transactions.stream()
+            .collect(Collectors.groupingBy(
+                t -> t.getDate().toLocalDate().toString(),
+                Collectors.counting()
+            ));
+
+        analytics.put("deposits", depositCount);
+        analytics.put("withdrawals", withdrawCount);
+        analytics.put("activityByDate", dateActivity);
+
+        return analytics;
+    }
+    
+    @Override
+    public List<Transaction> filterTransactions(Long userId, String type, String date, Double amount) {
+        List<Transaction> transactions = transRepo.findByUserId(userId);
+
+        return transactions.stream()
+            .filter(t -> (type == null || t.getType().equalsIgnoreCase(type)))
+            .filter(t -> (amount == null || t.getAmount() == amount))
+            .filter(t -> (date == null || t.getDate().toString().contains(date))) // adjust date format as needed
+            .toList();
+    }
+
+
+
+}
+

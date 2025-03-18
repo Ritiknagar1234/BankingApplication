@@ -1,0 +1,13 @@
+package com.bank.DTO;
+
+import lombok.ToString;
+
+@ToString
+public class UserDTO {
+	 public String name;
+	    public String cardNumber;
+	    public String pin;
+	    public String email;
+	    public String phone;
+	    public double balance;
+}

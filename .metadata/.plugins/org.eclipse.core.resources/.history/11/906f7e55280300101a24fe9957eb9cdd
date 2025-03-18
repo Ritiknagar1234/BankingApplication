@@ -1,0 +1,127 @@
+package com.bank.controller;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.bank.DTO.LoginDTO;
+import com.bank.DTO.UserDTO;
+import com.bank.entities.Transaction;
+import com.bank.entities.User;
+import com.bank.payload.LoginRequest;
+import com.bank.payload.OtpRequest;
+import com.bank.payload.WithdrawRequest;
+import com.bank.repository.UserRepository;
+import com.bank.service.ATMService;
+import com.bank.service.OtpService;
+
+@CrossOrigin(origins = "http://localhost:5174")
+@RestController
+@RequestMapping("/api")
+public class ATMController {
+
+    @Autowired
+    private ATMService atmService;
+
+    @Autowired
+    private UserRepository userRepo;
+
+    @Autowired
+    private OtpService otpService;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody UserDTO dto) {
+        System.out.println(dto.toString());
+
+        // Register the user
+        User registeredUser = atmService.registerUser(dto);
+
+        // Send OTP after successful registration
+        otpService.generateAndSendOtp(registeredUser);
+
+        // Prepare response
+        Map<String, Object> response = new HashMap<>();
+        response.put("cardNumber", registeredUser.getCardNumber());
+        response.put("message", "Registered successfully. OTP sent to your email");
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<?> verifyOtp(@RequestBody OtpRequest otpRequest) {
+        return userRepo.findByCardNumber(otpRequest.getCardNumber())
+                .map(user -> {
+                    if (otpService.verifyOtp(user, otpRequest.getOtp())) {
+                        return ResponseEntity.ok(user); // or return JWT/session here
+                    } else {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid or expired OTP");
+                    }
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found"));
+    }
+
+
+    @PostMapping("/deposit")
+    public ResponseEntity<String> deposit(@RequestParam Long userId, @RequestParam double amount) {
+        atmService.deposit(userId, amount);
+        return ResponseEntity.ok("Amount Deposited Successfully");
+    }
+
+    @PostMapping("/withdraw")
+    public ResponseEntity<String> withdraw(@RequestBody WithdrawRequest request) {
+        atmService.withdraw(request.getUserId(), request.getAmount());
+        return ResponseEntity.ok("Withdrawal Successful");
+    }
+
+    @PostMapping("/fast-cash")
+    public ResponseEntity<String> fastCash(@RequestParam Long userId, @RequestParam double amount) {
+        atmService.fastCash(userId, amount);
+        return ResponseEntity.ok("Fast Cash Withdrawn");
+    }
+
+    @PutMapping("/change-pin")
+    public ResponseEntity<String> changePin(@RequestParam Long userId, @RequestParam String newPin) {
+        atmService.changePin(userId, newPin);
+        return ResponseEntity.ok("PIN Changed Successfully");
+    }
+
+    @GetMapping("/balance/{userId}")
+    public ResponseEntity<Double> getBalance(@PathVariable Long userId) {
+        return ResponseEntity.ok(atmService.getBalance(userId));
+    }
+
+    @GetMapping("/analytics/{userId}")
+    public ResponseEntity<Map<String, Object>> getAnalytics(@PathVariable Long userId) {
+        return ResponseEntity.ok(atmService.getTransactionAnalytics(userId));
+    }
+
+    @GetMapping("/user/{id}")
+    public ResponseEntity<User> getUser(@PathVariable Long id) {
+        return ResponseEntity.ok(userRepo.findById(id).orElseThrow());
+    }
+
+    @PutMapping("/user/{id}")
+    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody UserDTO dto) {
+        User user = userRepo.findById(id).orElseThrow();
+        user.setName(dto.name);
+        user.setEmail(dto.email);
+        user.setPhone(dto.phone);
+        return ResponseEntity.ok(userRepo.save(user));
+    }
+
+    @GetMapping("/transactions/{userId}")
+    public ResponseEntity<List<Transaction>> getFilteredTransactions(
+            @PathVariable Long userId,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) Double amount
+    ) {
+        List<Transaction> filtered = atmService.filterTransactions(userId, type, date, amount);
+        return ResponseEntity.ok(filtered);
+    }
+}

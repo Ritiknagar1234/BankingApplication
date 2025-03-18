@@ -1,0 +1,6 @@
+package com.bank.DTO;
+
+public class LoginDTO {
+	 public String cardNumber;
+	    public String pin;
+}
